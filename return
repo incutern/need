@@ -1,0 +1,27 @@
+def _run_legacy(
+        hook_type: str,
+        hook_dir: str,
+        args: Sequence[str],
+) -> tuple[int, bytes]:
+    if os.environ.get('PRE_COMMIT_RUNNING_LEGACY'):
+        raise SystemExit(
+            f"bug: pre-commit's script is installed in migration mode\n"
+            f'run `pre-commit install -f --hook-type {hook_type}` to fix '
+            f'this\n\n'
+            f'Please report this bug at '
+            f'https://github.com/pre-commit/pre-commit/issues',
+        )
+
+    if hook_type == 'pre-push':
+        stdin = sys.stdin.buffer.read()
+    else:
+        stdin = b''
+
+    # not running in legacy mode
+    legacy_hook = os.path.join(hook_dir, f'{hook_type}.legacy')
+    if not os.access(legacy_hook, os.X_OK):
+        return 0, stdin
+
+    with envcontext((('PRE_COMMIT_RUNNING_LEGACY', '1'),)):
+        cmd = normalize_cmd((legacy_hook, *args))
+        return subprocess.run(cmd, input=stdin).returncode, stdin
